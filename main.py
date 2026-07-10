@@ -315,16 +315,26 @@ def main():
                             brain.api_keys.append(new_key)
                             env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
                             try:
-                                with open(env_path, "r") as f:
-                                    lines = f.readlines()
+                                lines = []
+                                if os.path.exists(env_path):
+                                    with open(env_path, "r") as f:
+                                        lines = f.readlines()
+                                
+                                key_found = False
                                 with open(env_path, "w") as f:
                                     for line in lines:
                                         if line.startswith("GEMINI_API_KEYS="):
                                             current_keys = line.strip().split("=", 1)[1].strip('"').strip("'")
-                                            new_line = f'GEMINI_API_KEYS="{current_keys},{new_key}"\n' if current_keys else f'GEMINI_API_KEYS="{new_key}"\n'
+                                            if current_keys and not current_keys.startswith("your_"):
+                                                new_line = f'GEMINI_API_KEYS="{current_keys},{new_key}"\n'
+                                            else:
+                                                new_line = f'GEMINI_API_KEYS="{new_key}"\n'
                                             f.write(new_line)
+                                            key_found = True
                                         else:
                                             f.write(line)
+                                    if not key_found:
+                                        f.write(f'GEMINI_API_KEYS="{new_key}"\n')
                                 show_status("API Key successfully added to RUBIKS brain and saved!", "bold green")
                                 if len(brain.api_keys) == 1:
                                     brain.setup_session([])
