@@ -1,0 +1,28 @@
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# RUBIKS Runtime Files
+chat_memory.txt
+butler_log.txt
+user_profile.json
+rubiks_credentials.txt
+rubiks_sandbox.py
+rubiks_status.json
+current_screen.png
+click_target.png
+Google_Meet_Participants_Log.txt
+memory.json
+
+# IDE
+.vscode/
+.idea/
