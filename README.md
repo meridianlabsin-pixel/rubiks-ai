@@ -26,7 +26,7 @@ GEMINI_API_KEYS="your_key_1,your_key_2"
 ```bash
 python main.py
 ```
-Or simply double-click the `rubiks 2.bat` file.
+Or simply double-click the `rubiks.bat` file.
 
 ## Privacy Note
 All your personal data, chat history, and memory logs (`chat_memory.txt`, `butler_log.txt`, `user_profile.json`) are stored strictly **LOCALLY** on your hard drive. Nothing is uploaded to any cloud server except the queries sent directly to the Gemini API for processing. Your data is yours.
