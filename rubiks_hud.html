@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>RUBIKS — Adaptive Intelligence Interface</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;500;700;900&family=Share+Tech+Mono&display=swap');
+
+*{box-sizing:border-box;margin:0;padding:0}
+
+html,body{
+  width:100%;height:100%;
+  background:#050508;
+  color:#e8e8f0;
+  font-family:'Rajdhani',sans-serif;
+  overflow:hidden;
+}
+
+/* ── Grid BG ── */
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:
+    linear-gradient(rgba(220,230,255,0.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(220,230,255,0.025) 1px,transparent 1px);
+  background-size:40px 40px;
+  pointer-events:none;z-index:0;
+}
+/* ── Scanlines ── */
+body::after{
+  content:'';position:fixed;inset:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.07) 2px,rgba(0,0,0,0.07) 4px);
+  pointer-events:none;z-index:999;
+}
+
+/* ── Corner brackets ── */
+.corner{position:fixed;width:18px;height:18px;opacity:.35;z-index:100}
+.corner.tl{top:6px;left:6px;border-top:1px solid #c8d8ff;border-left:1px solid #c8d8ff}
+.corner.tr{top:6px;right:6px;border-top:1px solid #c8d8ff;border-right:1px solid #c8d8ff}
+.corner.bl{bottom:6px;left:6px;border-bottom:1px solid #c8d8ff;border-left:1px solid #c8d8ff}
+.corner.br{bottom:6px;right:6px;border-bottom:1px solid #c8d8ff;border-right:1px solid #c8d8ff}
+
+/* ── LAYOUT ── */
+#app{
+  position:relative;z-index:1;
+  width:100%;height:100%;
+  display:grid;
+  grid-template-rows:56px 1fr 48px;
+  padding:10px;gap:10px;
+}
+
+/* ── TOP BAR ── */
+#topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid rgba(200,210,255,0.1);
+  padding-bottom:10px;
+}
+.logo-area{display:flex;align-items:center;gap:12px}
+.logo-hex{width:42px;height:42px;position:relative;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.logo-hex svg{width:42px;height:42px;animation:hex-spin 12s linear infinite}
+@keyframes hex-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.logo-dot{
+  position:absolute;width:7px;height:7px;border-radius:50%;
+  background:#fff;box-shadow:0 0 10px rgba(255,255,255,.8),0 0 20px rgba(180,200,255,.5);
+  animation:pulse-dot 2s ease-in-out infinite;
+}
+@keyframes pulse-dot{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.4);opacity:.7}}
+.logo-name{font-family:'Orbitron',sans-serif;font-size:20px;font-weight:900;letter-spacing:6px;color:#fff;text-shadow:0 0 20px rgba(180,200,255,.6)}
+.logo-sub{font-family:'Share Tech Mono',monospace;font-size:8px;letter-spacing:4px;color:rgba(180,200,255,.4)}
+
+.status-row{display:flex;align-items:center;gap:16px}
+.status-pill{
+  display:flex;align-items:center;gap:6px;
+  background:rgba(255,255,255,.04);border:1px solid rgba(200,220,255,.1);
+  border-radius:20px;padding:3px 12px;
+  font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:2px;
+  color:rgba(200,220,255,.6);
+}
+.status-dot{
+  width:6px;height:6px;border-radius:50%;background:#c8d8ff;
+  animation:blink-dot 1.8s ease-in-out infinite;
+}
+@keyframes blink-dot{0%,100%{opacity:1;box-shadow:0 0 6px rgba(200,220,255,.8)}50%{opacity:.3}}
+.speaking .status-dot{background:#fff;box-shadow:0 0 10px #fff;animation:none}
+.speaking-pill{display:none}
+.speaking .speaking-pill{display:flex}
+
+#hud-time{font-family:'Orbitron',monospace;font-size:12px;font-weight:500;color:rgba(255,255,255,.7);letter-spacing:2px}
+
+.waveform{display:flex;align-items:center;gap:2px;height:20px}
+.wave-bar{width:2px;background:rgba(200,220,255,.35);border-radius:1px;animation:wave-anim 1.2s ease-in-out infinite}
+@keyframes wave-anim{0%,100%{height:3px;opacity:.3}50%{height:var(--h);opacity:.9}}
+
+/* ── MAIN GRID ── */
+#main{
+  display:grid;
+  grid-template-columns:220px 1fr 220px;
+  gap:10px;
+  min-height:0;
+}
+
+/* ── PANEL BASE ── */
+.panel{
+  background:rgba(255,255,255,.02);
+  border:1px solid rgba(200,220,255,.1);
+  border-radius:8px;padding:14px;
+  position:relative;overflow:hidden;
+  display:flex;flex-direction:column;gap:10px;
+}
+.panel::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(200,220,255,.35),transparent);
+}
+.panel-label{
+  font-family:'Share Tech Mono',monospace;font-size:8px;letter-spacing:3px;
+  color:rgba(180,200,255,.4);text-transform:uppercase;
+  display:flex;align-items:center;gap:6px;flex-shrink:0;
+}
+.panel-label::before{content:'';width:12px;height:1px;background:rgba(180,200,255,.3)}
+
+/* ── LEFT PANEL — System Metrics ── */
+.stat-item{display:flex;flex-direction:column;gap:4px}
+.stat-label{font-family:'Share Tech Mono',monospace;font-size:8px;letter-spacing:2px;color:rgba(180,200,255,.4)}
+.stat-bar-wrap{height:3px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden}
+.stat-bar{
+  height:100%;border-radius:2px;
+  background:linear-gradient(90deg,rgba(180,200,255,.5),rgba(255,255,255,.9));
+  transition:width 1s ease;
+  animation:bar-glow 3s ease-in-out infinite;
+}
+@keyframes bar-glow{0%,100%{box-shadow:0 0 4px rgba(255,255,255,.3)}50%{box-shadow:0 0 8px rgba(255,255,255,.6)}}
+.stat-val{font-family:'Orbitron',monospace;font-size:10px;color:rgba(220,230,255,.8);font-weight:500}
+
+/* ── CENTER PANEL ── */
+#center{
+  background:rgba(255,255,255,.02);
+  border:1px solid rgba(200,220,255,.12);
+  border-radius:8px;padding:14px;
+  position:relative;overflow:hidden;
+  display:flex;flex-direction:column;gap:10px;min-height:0;
+}
+#center::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.5),transparent);
+}
+
+/* ── CUBE AREA ── */
+#cube-area{
+  flex:1;position:relative;display:flex;align-items:center;justify-content:center;
+  min-height:0;
+}
+#cube3d{display:block;cursor:grab}
+#cube3d:active{cursor:grabbing}
+
+/* Speak ring */
+#speak-ring{
+  position:absolute;
+  width:200px;height:200px;border-radius:50%;
+  border:2px solid rgba(200,220,255,.5);
+  box-shadow:0 0 30px rgba(200,220,255,.25),inset 0 0 30px rgba(200,220,255,.1);
+  opacity:0;pointer-events:none;transition:opacity .3s;
+}
+#speak-ring.active{opacity:1;animation:speak-pulse .7s ease-in-out infinite alternate}
+@keyframes speak-pulse{
+  from{transform:scale(.93);opacity:.5}
+  to{transform:scale(1.18);opacity:1}
+}
+
+/* ── CHAT AREA ── */
+#chat-area{display:flex;flex-direction:column;gap:6px;flex-shrink:0;max-height:200px}
+#chat-log{
+  flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px;
+  max-height:140px;
+}
+#chat-log::-webkit-scrollbar{width:3px}
+#chat-log::-webkit-scrollbar-thumb{background:rgba(200,220,255,.2);border-radius:2px}
+.chat-line{
+  font-size:12px;line-height:1.5;padding:5px 10px;border-radius:4px;
+  border-left:2px solid rgba(200,220,255,.15);
+  background:rgba(255,255,255,.02);color:rgba(210,225,255,.75);
+  animation:fade-up .25s ease;font-family:'Rajdhani',sans-serif;
+}
+.chat-line.user{border-left-color:rgba(255,255,255,.4);color:rgba(255,255,255,.9);background:rgba(255,255,255,.04)}
+.chat-line.rubiks{border-left-color:rgba(160,185,255,.5);color:rgba(190,210,255,.85)}
+.chat-line.sys{border-left-color:rgba(120,160,255,.3);color:rgba(160,190,255,.6);font-style:italic}
+.chat-line span{font-family:'Share Tech Mono',monospace;font-size:8px;letter-spacing:2px;margin-right:6px;opacity:.5}
+@keyframes fade-up{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+
+.typing-indicator{
+  display:none;align-items:center;gap:4px;padding:4px 10px;
+  font-family:'Share Tech Mono',monospace;font-size:8px;letter-spacing:2px;
+  color:rgba(180,200,255,.4);
+}
+.typing-indicator.active{display:flex}
+.typing-dot{
+  width:4px;height:4px;border-radius:50%;background:rgba(180,200,255,.6);
+  animation:typing-bounce 1.2s ease-in-out infinite;
+}
+.typing-dot:nth-child(2){animation-delay:.2s}
+.typing-dot:nth-child(3){animation-delay:.4s}
+@keyframes typing-bounce{0%,100%{transform:translateY(0);opacity:.4}50%{transform:translateY(-4px);opacity:1}}
+
+.input-row{
+  display:flex;gap:8px;align-items:center;
+  background:rgba(255,255,255,.03);border:1px solid rgba(200,220,255,.12);
+  border-radius:6px;padding:5px 10px;flex-shrink:0;
+}
+.input-row input{
+  flex:1;background:transparent;border:none;outline:none;
+  font-family:'Rajdhani',sans-serif;font-size:14px;color:rgba(255,255,255,.9);
+}
+.input-row input::placeholder{color:rgba(180,200,255,.25);font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:2px}
+.send-btn{
+  background:rgba(200,220,255,.08);border:1px solid rgba(200,220,255,.2);
+  border-radius:4px;color:rgba(255,255,255,.8);padding:4px 12px;
+  font-family:'Orbitron',monospace;font-size:8px;letter-spacing:2px;
+  cursor:pointer;transition:all .2s;
+}
+.send-btn:hover{background:rgba(200,220,255,.15);border-color:rgba(255,255,255,.4);color:#fff}
+
+/* ── RIGHT PANEL ── */
+.module-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.module-node{
+  background:rgba(255,255,255,.03);border:1px solid rgba(200,220,255,.1);
+  border-radius:6px;padding:8px 6px;text-align:center;
+  cursor:pointer;transition:all .2s;position:relative;overflow:hidden;
+}
+.module-node.active{background:rgba(200,220,255,.08);border-color:rgba(200,220,255,.35)}
+.module-node.active::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:rgba(255,255,255,.5)}
+.module-icon{font-size:14px;margin-bottom:3px;color:rgba(200,220,255,.6)}
+.module-node.active .module-icon{color:rgba(255,255,255,.9)}
+.module-name{font-family:'Share Tech Mono',monospace;font-size:7px;letter-spacing:2px;color:rgba(180,200,255,.4)}
+.module-node.active .module-name{color:rgba(200,220,255,.8)}
+
+.activity-item{display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid rgba(200,220,255,.05)}
+.act-dot{width:5px;height:5px;border-radius:50%;background:rgba(200,220,255,.35);margin-top:3px;flex-shrink:0}
+.act-dot.live{background:rgba(255,255,255,.8);animation:blink-dot 1.5s infinite}
+.act-text{color:rgba(180,200,255,.6);font-family:'Share Tech Mono',monospace;font-size:8px;letter-spacing:1px;line-height:1.5}
+.act-time{margin-left:auto;font-size:7px;color:rgba(180,200,255,.25);letter-spacing:1px;font-family:'Share Tech Mono',monospace;flex-shrink:0}
+
+/* ── BOTTOM BAR ── */
+#bottombar{
+  display:flex;align-items:center;justify-content:space-between;
+  border-top:1px solid rgba(200,220,255,.08);
+  padding-top:8px;
+}
+.b-stats{display:flex;gap:24px}
+.b-stat{display:flex;flex-direction:column;gap:1px}
+.b-stat-label{font-family:'Share Tech Mono',monospace;font-size:7px;letter-spacing:2px;color:rgba(180,200,255,.3)}
+.b-stat-value{font-family:'Orbitron',monospace;font-size:12px;font-weight:500;color:rgba(220,230,255,.8)}
+.corner-deco svg{opacity:.3}
+</style>
+</head>
+<body>
+
+<div class="corner tl"></div>
+<div class="corner tr"></div>
+<div class="corner bl"></div>
+<div class="corner br"></div>
+
+<div id="app">
+
+  <!-- TOP BAR -->
+  <div id="topbar">
+    <div class="logo-area">
+      <div class="logo-hex">
+        <svg viewBox="0 0 46 46" fill="none">
+          <polygon points="23,2 42,12.5 42,33.5 23,44 4,33.5 4,12.5" stroke="rgba(200,220,255,0.35)" stroke-width="0.5" fill="none"/>
+          <polygon points="23,7 38,15.5 38,32.5 23,41 8,32.5 8,15.5"  stroke="rgba(200,220,255,0.2)"  stroke-width="0.5" fill="none"/>
+          <polygon points="23,12 34,18.5 34,31.5 23,38 12,31.5 12,18.5" stroke="rgba(255,255,255,0.15)" stroke-width="0.5" fill="none"/>
+        </svg>
+        <div class="logo-dot"></div>
+      </div>
+      <div>
+        <div class="logo-name">RUBIKS</div>
+        <div class="logo-sub">Adaptive Intelligence Interface · Build 10.0</div>
+      </div>
+    </div>
+    <div class="status-row" id="status-row">
+      <div class="status-pill"><div class="status-dot"></div>ONLINE</div>
+      <div class="status-pill speaking-pill" style="border-color:rgba(255,255,255,0.3)"><div class="status-dot"></div>SPEAKING</div>
+      <div id="hud-time">--:--:--</div>
+      <div class="waveform" id="waveform"></div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main">
+
+    <!-- LEFT: System Metrics -->
+    <div class="panel">
+      <div class="panel-label">system metrics</div>
+      <div class="stat-item">
+        <div class="stat-label">NEURAL LOAD</div>
+        <div class="stat-bar-wrap"><div class="stat-bar" id="bar-cpu" style="width:20%"></div></div>
+        <div class="stat-val" id="val-cpu">—</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">MEMORY SYNC</div>
+        <div class="stat-bar-wrap"><div class="stat-bar" id="bar-ram" style="width:50%"></div></div>
+        <div class="stat-val" id="val-ram">—</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">RESPONSE VEL</div>
+        <div class="stat-bar-wrap"><div class="stat-bar" style="width:95%"></div></div>
+        <div class="stat-val">OPTIMAL</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">ENCRYPTION</div>
+        <div class="stat-bar-wrap"><div class="stat-bar" style="width:100%"></div></div>
+        <div class="stat-val">SECURE</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">UPTIME</div>
+        <div class="stat-bar-wrap"><div class="stat-bar" id="bar-uptime" style="width:10%"></div></div>
+        <div class="stat-val" id="val-uptime">00:00:00</div>
+      </div>
+      <div class="stat-item" style="margin-top:auto">
+        <div class="stat-label">CUBE — ROT-X</div>
+        <div class="stat-bar-wrap"><div class="stat-bar" id="bar-rx" style="width:30%"></div></div>
+        <div class="stat-val" id="val-rx">0.0°</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-label">CUBE — ROT-Y</div>
+        <div class="stat-bar-wrap"><div class="stat-bar" id="bar-ry" style="width:50%"></div></div>
+        <div class="stat-val" id="val-ry">0.0°</div>
+      </div>
+    </div>
+
+    <!-- CENTER: 3D Cube + Chat -->
+    <div id="center">
+      <div id="cube-area">
+        <div id="speak-ring"></div>
+        <canvas id="cube3d"></canvas>
+      </div>
+      <div id="chat-area">
+        <div id="chat-log">
+          <div class="chat-line rubiks"><span>RUBIKS</span>Holographic interface online. Awaiting your command, Boss.</div>
+        </div>
+        <div class="typing-indicator" id="typing">
+          <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
+          &nbsp;RUBIKS PROCESSING...
+        </div>
+        <div class="input-row">
+          <input type="text" id="hud-input" placeholder="// ENTER COMMAND OR QUERY..." autocomplete="off"/>
+          <button class="send-btn" onclick="handleSend()">SEND</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Modules + Activity -->
+    <div class="panel">
+      <div class="panel-label">modules</div>
+      <div class="module-grid">
+        <div class="module-node active" onclick="sendCmd('check my system stats')">
+          <div class="module-icon">⚡</div><div class="module-name">Stats</div>
+        </div>
+        <div class="module-node active" onclick="sendCmd('check my emails')">
+          <div class="module-icon">✉</div><div class="module-name">Email</div>
+        </div>
+        <div class="module-node active" onclick="sendCmd('give me my morning briefing')">
+          <div class="module-icon">🌐</div><div class="module-name">Brief</div>
+        </div>
+        <div class="module-node" onclick="sendCmd('what do you remember')">
+          <div class="module-icon">🧠</div><div class="module-name">Memory</div>
+        </div>
+        <div class="module-node active" onclick="toggleWireframe()">
+          <div class="module-icon">◻</div><div class="module-name" id="wire-lbl">Wireframe</div>
+        </div>
+        <div class="module-node" onclick="toggleExplode()">
+          <div class="module-icon">💥</div><div class="module-name" id="expl-lbl">Explode</div>
+        </div>
+      </div>
+
+      <div class="panel-label">activity log</div>
+      <div id="activity-feed" style="flex:1;overflow-y:auto">
+        <div class="activity-item">
+          <div class="act-dot live"></div>
+          <div class="act-text">Neural core engaged</div>
+          <div class="act-time">LIVE</div>
+        </div>
+        <div class="activity-item">
+          <div class="act-dot"></div>
+          <div class="act-text">Bridge connected</div>
+          <div class="act-time">00:01</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM BAR -->
+  <div id="bottombar">
+    <div class="b-stats">
+      <div class="b-stat"><div class="b-stat-label">SESSION</div><div class="b-stat-value">001</div></div>
+      <div class="b-stat"><div class="b-stat-label">QUERIES</div><div class="b-stat-value" id="q-count">000</div></div>
+      <div class="b-stat"><div class="b-stat-label">LATENCY</div><div class="b-stat-value" id="latency">—</div></div>
+      <div class="b-stat"><div class="b-stat-label">BUILD</div><div class="b-stat-value">10.0.0</div></div>
+      <div class="b-stat"><div class="b-stat-label">CUBE MODE</div><div class="b-stat-value" id="cube-mode">SOLVING</div></div>
+    </div>
+    <div class="corner-deco">
+      <svg width="60" height="20" viewBox="0 0 60 20">
+        <polyline points="0,10 10,10 15,3 20,17 25,3 30,17 35,10 60,10" fill="none" stroke="rgba(200,220,255,0.6)" stroke-width="1"/>
+      </svg>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════
+//  3D RUBIK'S CUBE ENGINE
+// ═══════════════════════════════════════════════════════════════════════════
+const canvas = document.getElementById('cube3d');
+const ctx    = canvas.getContext('2d');
+
+function resizeCanvas(){
+  const area = document.getElementById('cube-area');
+  canvas.width  = area.clientWidth;
+  canvas.height = area.clientHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+const W=()=>canvas.width, H=()=>canvas.height;
+const CX=()=>W()/2, CY=()=>H()/2;
+
+// Face colors — silver/white tones matching rubiks_3d_gui
+const FACE_COLORS = [
+  '#dce8ff','#c8d8f8','#b4c8f0',
+  '#e8f0ff','#f0f4ff','#c0d0ec',
+];
+
+// ── State ──────────────────────────────────────────────────────────────────
+let rotX=0.4, rotY=0.6;
+let velX=0, velY=0;
+let zoom=1.0;
+let wireframe=false;
+let explode=false;
+let explodeFactor=0;
+let isDragging=false, lastMX=0, lastMY=0;
+
+// ── Self-Solve Animation ───────────────────────────────────────────────────
+// We animate rotX/rotY along a pre-computed "solve path" sequence.
+// Each step rotates toward a keyframe. When the user drags, we pause
+// the auto-path and resume after 2s of inactivity.
+const SOLVE_PATH = (() => {
+  const pts = [];
+  // Scrambled → solved in a looping cinematic sequence
+  const keyframes = [
+    [0.4, 0.6], [0.6, 1.2], [0.2, 2.4], [0.8, 3.6],
+    [0.3, 4.8], [0.5, 6.0], [0.4, 7.2], [0.2, 8.4],
+    [0.6, 9.6], [0.4, 0.6],
+  ];
+  for(let i=0;i<keyframes.length-1;i++){
+    const [x0,y0]=keyframes[i];
+    const [x1,y1]=keyframes[i+1];
+    for(let t=0;t<120;t++){
+      const f=t/120;
+      // Smooth ease-in-out
+      const e=f<.5?2*f*f:1-Math.pow(-2*f+2,2)/2;
+      pts.push([x0+(x1-x0)*e, y0+(y1-y0)*e]);
+    }
+  }
+  return pts;
+})();
+
+let solvePt=0;          // current position in SOLVE_PATH
+let autoSolve=true;     // false while user is dragging
+let dragTimeout=null;   // resume timer after drag
+
+function stepSolve(){
+  if(!autoSolve) return;
+  const [tx,ty]=SOLVE_PATH[solvePt];
+  // Gently lerp toward target
+  rotX += (tx-rotX)*0.04;
+  rotY += (ty-rotY)*0.04;
+  solvePt=(solvePt+1)%SOLVE_PATH.length;
+}
+
+// ── Math ───────────────────────────────────────────────────────────────────
+function rotatePoint(x,y,z,rx,ry){
+  let cy=Math.cos(ry),sy=Math.sin(ry);
+  let nx=x*cy-z*sy, nz=x*sy+z*cy;
+  x=nx; z=nz;
+  let cx2=Math.cos(rx),sx2=Math.sin(rx);
+  let ny=y*cx2-z*sx2; nz=y*sx2+z*cx2;
+  return{x,y:ny,z:nz};
+}
+function project(x,y,z){
+  const fov=Math.min(W(),H())*0.55*zoom;
+  const sc=fov/(fov+z+120);
+  return{x:CX()+x*sc,y:CY()+y*sc,z,s:sc};
+}
+function adjustBrightness(hex,f){
+  const r=parseInt(hex.slice(1,3),16);
+  const g=parseInt(hex.slice(3,5),16);
+  const b=parseInt(hex.slice(5,7),16);
+  return`rgba(${Math.round(r*f)},${Math.round(g*f)},${Math.round(b*f)},0.93)`;
+}
+
+// ── Cube Geometry ──────────────────────────────────────────────────────────
+const SIZE=55, GAP=4;
+
+const CUBE_FACE_DEFS=[
+  {v:[[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]],   n:[0,0,1],  fi:0},
+  {v:[[1,-1,-1],[-1,-1,-1],[-1,1,-1],[1,1,-1]],n:[0,0,-1], fi:1},
+  {v:[[1,-1,1],[1,-1,-1],[1,1,-1],[1,1,1]],    n:[1,0,0],  fi:2},
+  {v:[[-1,-1,-1],[-1,-1,1],[-1,1,1],[-1,1,-1]],n:[-1,0,0], fi:3},
+  {v:[[-1,-1,-1],[1,-1,-1],[1,-1,1],[-1,-1,1]],n:[0,-1,0], fi:4},
+  {v:[[-1,1,1],[1,1,1],[1,1,-1],[-1,1,-1]],    n:[0,1,0],  fi:5},
+];
+
+function getCubeletPos(ci,cj,ck,ef){
+  const step=(SIZE+GAP)*(1+ef*0.85);
+  return{bx:(ci-1)*step,by:(cj-1)*step,bz:(ck-1)*step};
+}
+
+function drawScene(){
+  ctx.clearRect(0,0,W(),H());
+  ctx.fillStyle='#06060a';
+  ctx.fillRect(0,0,W(),H());
+
+  // Subtle grid
+  ctx.strokeStyle='rgba(200,220,255,0.018)';
+  ctx.lineWidth=0.5;
+  for(let i=0;i<W();i+=50){ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,H());ctx.stroke()}
+  for(let j=0;j<H();j+=50){ctx.beginPath();ctx.moveTo(0,j);ctx.lineTo(W(),j);ctx.stroke()}
+
+  // Gather + depth-sort faces from all 27 cubelets
+  const allFaces=[];
+  for(let ci=0;ci<3;ci++)for(let cj=0;cj<3;cj++)for(let ck=0;ck<3;ck++){
+    const{bx,by,bz}=getCubeletPos(ci,cj,ck,explodeFactor);
+    for(const face of CUBE_FACE_DEFS){
+      const rn=rotatePoint(face.n[0],face.n[1],face.n[2],rotX,rotY);
+      if(rn.z>0) continue;
+      const pts=face.v.map(([lx,ly,lz])=>{
+        const r=rotatePoint(bx+lx*SIZE/2,by+ly*SIZE/2,bz+lz*SIZE/2,rotX,rotY);
+        return project(r.x,r.y,r.z);
+      });
+      const avgZ=pts.reduce((a,p)=>a+p.z,0)/pts.length;
+      allFaces.push({
+        pts:pts.map(p=>({x:p.x,y:p.y})),
+        avgZ, dot:-rn.z, fi:face.fi,
+        isEdge:ci===0||ci===2||cj===0||cj===2||ck===0||ck===2
+      });
+    }
+  }
+  allFaces.sort((a,b)=>b.avgZ-a.avgZ);
+
+  for(const{pts,dot,fi,isEdge}of allFaces){
+    const pArr=pts.map(p=>[p.x,p.y]);
+    ctx.beginPath();
+    ctx.moveTo(pArr[0][0],pArr[0][1]);
+    for(let i=1;i<pArr.length;i++) ctx.lineTo(pArr[i][0],pArr[i][1]);
+    ctx.closePath();
+    if(!wireframe){
+      ctx.fillStyle=adjustBrightness(FACE_COLORS[fi],0.25+dot*0.75);
+      ctx.fill();
+      ctx.strokeStyle='rgba(70,90,140,0.4)';
+      ctx.lineWidth=0.8;ctx.stroke();
+      if(isEdge){
+        ctx.strokeStyle=`rgba(255,255,255,${0.06+dot*0.22})`;
+        ctx.lineWidth=1.2;ctx.stroke();
+      }
+    }else{
+      ctx.strokeStyle=`rgba(200,220,255,${0.2+dot*0.6})`;
+      ctx.lineWidth=0.8;ctx.stroke();
+    }
+  }
+
+  // Orbit ring
+  const t=Date.now()/1000;
+  const rimR=Math.min(W(),H())*0.29*zoom;
+  ctx.beginPath();
+  ctx.ellipse(CX(),CY(),rimR,rimR*0.28,0,0,Math.PI*2);
+  ctx.strokeStyle='rgba(200,220,255,0.07)';ctx.lineWidth=1;ctx.stroke();
+
+  // Orbiting dots
+  for(let i=0;i<6;i++){
+    const a=(i/6)*Math.PI*2+t*0.6;
+    const dx=rimR*Math.cos(a),dy=rimR*0.28*Math.sin(a);
+    const bright=0.25+0.35*Math.sin(t*2+i);
+    ctx.beginPath();
+    ctx.arc(CX()+dx,CY()+dy,2.5,0,Math.PI*2);
+    ctx.fillStyle=`rgba(200,220,255,${bright.toFixed(2)})`;
+    ctx.fill();
+  }
+
+  // Telemetry update
+  updateTelemetry();
+}
+
+function updateTelemetry(){
+  const rx=((rotX*180/Math.PI)%360+360)%360;
+  const ry=((rotY*180/Math.PI)%360+360)%360;
+  document.getElementById('val-rx').textContent=rx.toFixed(1)+'°';
+  document.getElementById('val-ry').textContent=ry.toFixed(1)+'°';
+  document.getElementById('bar-rx').style.width=(rx/360*100).toFixed(0)+'%';
+  document.getElementById('bar-ry').style.width=(ry/360*100).toFixed(0)+'%';
+  document.getElementById('cube-mode').textContent=autoSolve?'SOLVING':'MANUAL';
+}
+
+// ── Animation Loop ─────────────────────────────────────────────────────────
+let lastTs=0;
+function animate(ts){
+  const dt=Math.min((ts-lastTs)/1000,0.05);
+  lastTs=ts;
+
+  stepSolve();
+
+  if(!isDragging){
+    rotX+=velX; rotY+=velY;
+    velX*=0.88; velY*=0.88;
+  }
+
+  // Explode
+  const targetEF=explode?1:0;
+  explodeFactor+=(targetEF-explodeFactor)*Math.min(1,dt*5);
+
+  drawScene();
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+
+// ── Mouse Input ────────────────────────────────────────────────────────────
+canvas.addEventListener('mousedown',e=>{
+  isDragging=true; autoSolve=false;
+  lastMX=e.clientX; lastMY=e.clientY;
+  velX=velY=0;
+  clearTimeout(dragTimeout);
+  document.getElementById('cube-mode').textContent='MANUAL';
+});
+window.addEventListener('mouseup',()=>{
+  isDragging=false;
+  // Resume auto-solve after 2.5s of no drag
+  dragTimeout=setTimeout(()=>{autoSolve=true;},2500);
+});
+window.addEventListener('mousemove',e=>{
+  if(!isDragging)return;
+  velY=(e.clientX-lastMX)*0.008;
+  velX=(e.clientY-lastMY)*0.008;
+  rotY+=velY; rotX+=velX;
+  lastMX=e.clientX; lastMY=e.clientY;
+});
+canvas.addEventListener('wheel',e=>{
+  e.preventDefault();
+  zoom=Math.max(0.4,Math.min(2.5,zoom-e.deltaY*0.001));
+},{passive:false});
+
+// Touch
+canvas.addEventListener('touchstart',e=>{
+  isDragging=true; autoSolve=false;
+  clearTimeout(dragTimeout);
+  lastMX=e.touches[0].clientX; lastMY=e.touches[0].clientY;
+},{passive:true});
+canvas.addEventListener('touchmove',e=>{
+  if(!isDragging)return;
+  velY=(e.touches[0].clientX-lastMX)*0.008;
+  velX=(e.touches[0].clientY-lastMY)*0.008;
+  rotY+=velY; rotX+=velX;
+  lastMX=e.touches[0].clientX; lastMY=e.touches[0].clientY;
+},{passive:true});
+canvas.addEventListener('touchend',()=>{
+  isDragging=false;
+  dragTimeout=setTimeout(()=>{autoSolve=true;},2500);
+});
+
+// ── Cube Controls ──────────────────────────────────────────────────────────
+let wireBtn=document.getElementById('wire-lbl').parentElement;
+let explBtn=document.getElementById('expl-lbl').parentElement;
+
+function toggleWireframe(){
+  wireframe=!wireframe;
+  wireBtn.classList.toggle('active',wireframe);
+}
+function toggleExplode(){
+  explode=!explode;
+  explBtn.classList.toggle('active',explode);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  BRIDGE — Bidirectional Python↔HUD Communication
+// ═══════════════════════════════════════════════════════════════════════════
+const BRIDGE='http://127.0.0.1:7474';
+let queryCount=0;
+let startTime=Date.now();
+
+function sendCmd(cmd){
+  document.getElementById('hud-input').value=cmd;
+  handleSend();
+}
+
+function handleSend(){
+  const inp=document.getElementById('hud-input');
+  const val=inp.value.trim();
+  if(!val)return;
+  inp.value='';
+
+  addLog(val,'user');
+  queryCount++;
+  document.getElementById('q-count').textContent=String(queryCount).padStart(3,'0');
+  addActivity('Query sent');
+
+  const t0=Date.now();
+  document.getElementById('typing').classList.add('active');
+
+  fetch(`${BRIDGE}/command`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({command:val})
+  }).then(()=>{
+    document.getElementById('latency').textContent=(Date.now()-t0)+'ms';
+  }).catch(err=>{
+    document.getElementById('typing').classList.remove('active');
+    addLog('Bridge offline — check terminal.','sys');
+  });
+}
+
+document.getElementById('hud-input').addEventListener('keydown',e=>{
+  if(e.key==='Enter') handleSend();
+});
+
+// ── SSE Stream: receive terminal output ────────────────────────────────────
+function connectStream(){
+  const es=new EventSource(`${BRIDGE}/stream`);
+  es.onmessage=e=>{
+    try{
+      const data=JSON.parse(e.data);
+      if(data.type==='connected')return;
+      const text=(data.text||'').trim();
+      if(!text)return;
+      document.getElementById('typing').classList.remove('active');
+      addLog(text,'rubiks');
+      addActivity('Response received');
+    }catch(err){}
+  };
+  es.onerror=()=>{
+    setTimeout(connectStream,3000); // reconnect
+  };
+}
+connectStream();
+
+// ── Status Poll (speaking ring) ────────────────────────────────────────────
+function pollStatus(){
+  fetch(`${BRIDGE}/status?t=`+Date.now())
+    .then(r=>r.json())
+    .then(d=>{
+      const speaking=d.speaking===true;
+      document.getElementById('speak-ring').classList.toggle('active',speaking);
+      document.getElementById('status-row').classList.toggle('speaking',speaking);
+    }).catch(()=>{});
+}
+setInterval(pollStatus,500);
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  HUD CHROME
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Clock + uptime
+function pad(n){return String(n).padStart(2,'0')}
+function updateClock(){
+  const now=new Date();
+  document.getElementById('hud-time').textContent=
+    `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  const el=Math.floor((Date.now()-startTime)/1000);
+  const h=Math.floor(el/3600),m=Math.floor((el%3600)/60),s=el%60;
+  document.getElementById('val-uptime').textContent=`${pad(h)}:${pad(m)}:${pad(s)}`;
+  document.getElementById('bar-uptime').style.width=Math.min(100,(el/3600*100))+'%';
+}
+setInterval(updateClock,1000);
+updateClock();
+
+// Waveform bars
+(function buildWaveform(){
+  const w=document.getElementById('waveform');
+  [4,8,14,18,22,16,10,20,12,6,18,14,8].forEach((h,i)=>{
+    const b=document.createElement('div');
+    b.className='wave-bar';
+    b.style.cssText=`--h:${h}px;animation-delay:${(i*0.09).toFixed(2)}s`;
+    w.appendChild(b);
+  });
+})();
+
+// Chat log
+function addLog(text,cls){
+  const log=document.getElementById('chat-log');
+  const line=document.createElement('div');
+  line.className=`chat-line ${cls}`;
+  const label=cls==='user'?'YOU':cls==='sys'?'SYS':'RUBIKS';
+  line.innerHTML=`<span>${label}</span>${text}`;
+  log.appendChild(line);
+  log.scrollTop=log.scrollHeight;
+  // Keep max 60 lines
+  while(log.children.length>60) log.removeChild(log.firstChild);
+}
+
+// Activity feed
+function addActivity(text){
+  const feed=document.getElementById('activity-feed');
+  const item=document.createElement('div');
+  item.className='activity-item';
+  item.innerHTML=`<div class="act-dot live"></div><div class="act-text">${text}</div><div class="act-time">LIVE</div>`;
+  const old=feed.querySelector('.act-dot.live');
+  if(old){old.classList.remove('live');old.parentElement.querySelector('.act-time').textContent='00:01';}
+  feed.insertBefore(item,feed.firstChild);
+  while(feed.children.length>8) feed.removeChild(feed.lastChild);
+}
+</script>
+</body>
+</html>
