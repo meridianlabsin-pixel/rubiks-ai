@@ -26,3 +26,30 @@ def control_media(action: str) -> str:
             return f"Unknown media action: '{action}'. Try 'play', 'pause', 'next', or 'previous'."
     except Exception as e:
         return f"Failed to control media: {str(e)}"
+
+def play_on_spotify(query: str) -> str:
+    """Searches and plays music on Spotify Desktop app automatically."""
+    try:
+        import webbrowser
+        import urllib.parse
+        import time
+        encoded = urllib.parse.quote(query)
+        webbrowser.open(f"spotify:search:{encoded}")
+        
+        # Wait for Spotify to open and load the search result
+        time.sleep(3)
+        
+        # Press Tab a few times to focus the first result and hit Enter
+        pyautogui.press('tab')
+        time.sleep(0.1)
+        pyautogui.press('tab')
+        time.sleep(0.1)
+        pyautogui.press('enter')
+        
+        # Also simulate a global play command just in case
+        time.sleep(0.5)
+        pyautogui.press('playpause')
+        
+        return f"Searching and playing '{query}' on Spotify."
+    except Exception as e:
+        return f"Failed to play on Spotify: {str(e)}"

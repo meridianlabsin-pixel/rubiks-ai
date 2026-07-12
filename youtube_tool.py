@@ -22,15 +22,10 @@ def play_on_youtube(query: str) -> str:
         if video_ids:
             video_url = f"https://www.youtube.com/watch?v={video_ids[0]}"
             
-            # 3. Explicitly launch Comet browser with the direct video link
-            if os.path.exists(None):
-                webbrowser.open(video_url)
-                return f"Playing '{query}' on YouTube in Comet."
-            else:
-                # Fallback to default browser if Comet is not found
-                import webbrowser
-                webbrowser.open(video_url)
-                return f"Playing '{query}' on YouTube (Comet not found)."
+            # 3. Explicitly launch the default browser with the direct video link
+            import webbrowser
+            webbrowser.open(video_url)
+            return f"Playing '{query}' on YouTube."
         else:
             return f"Could not find any YouTube videos for '{query}'."
             

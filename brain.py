@@ -20,12 +20,13 @@ from file_tools import list_files, read_file, write_file, find_recent_files, ope
 from account_tool import create_account
 from get_weather import get_weather
 from sys_admin_tool import get_running_processes, kill_process, read_clipboard, write_clipboard, set_system_volume, get_system_info, initiate_lockdown
-from media_tool import control_media
+from media_tool import control_media, play_on_spotify
 from gmail_tool import open_gmail, open_specific_email, compose_email
 from maps_tool import get_directions, show_on_map
 from chat_agent import start_chat_agent, stop_chat_agent
 from network_diag_tool import run_speed_test
 from website_builder_tool import build_business_website
+from fable_agent import launch_fable_agent
 
 import os
 
@@ -115,6 +116,11 @@ If the user asks ANY factual question:
 ## DECISION MAKING & EXECUTION RULES (ABSOLUTELY CRITICAL)
 - **NEVER FAKE ACTIONS.** Do NOT output text saying "I am sending the message" or "Hitting up Manisha" *UNLESS* you have actually successfully executed the tool (like `send_whatsapp_by_name`). You MUST call the tool *first*.
 - **SILENT EXECUTION.** If the user asks you to do a task, call the tool immediately. Only speak *after* the tool returns its result.
+- NETWORK DIAGNOSTICS: Use `run_speed_test()` when the user asks to check internet speed or connection quality.
+    
+- FABLE ENGINE: Use `launch_fable_agent(goal)` for complex, multi-step, long-horizon tasks. The Fable Engine is your most powerful tool - it autonomously plans, executes, self-verifies, and retries. Use it when the user gives you a massive task like "build me a website", "set up a full project", "research and compare 10 products", etc. It runs in the background and reports progress live.
+
+You must act independently and confidently. No confirmation dialogs unless explicitly required.
 - You have full authority to manage files, click screen elements, and control the PC. Trust your own judgment.
 - NEVER say "I cannot", "I don't have the ability". You are an EXECUTION engine. Act first, explain later. Find workarounds if something fails.
 - If a tool fails, try an alternative approach automatically before giving up.
@@ -158,8 +164,8 @@ tools = [
     execute_swarm, ask_entity, check_emails, execute_shadow_task, find_leads, generate_image,
     list_files, read_file, write_file, find_recent_files, open_file, search_files, create_account,
     get_weather, get_running_processes, kill_process, read_clipboard, write_clipboard, set_system_volume,
-    get_system_info, initiate_lockdown, control_media, open_gmail, open_specific_email, compose_email,
-    get_directions, show_on_map, start_chat_agent, stop_chat_agent, run_speed_test, build_business_website
+    get_system_info, initiate_lockdown, control_media, play_on_spotify, open_gmail, open_specific_email, compose_email,
+    get_directions, show_on_map, start_chat_agent, stop_chat_agent, run_speed_test, build_business_website, launch_fable_agent
 ]
 
 class RubiksBrain:
@@ -213,8 +219,21 @@ class RubiksBrain:
             return response_text
         except Exception as e:
             if attempts >= len(self.api_keys):
-                return f"All brain systems offline. Rate limit or connection error: {e}"
-            
+                try:
+                    import g4f
+                    response = g4f.ChatCompletion.create(
+                        model=g4f.models.gpt_4o,
+                        messages=[{"role": "user", "content": text}]
+                    )
+                    return response if response else "I am operating on the shadow proxy. My connection is unstable."
+                except Exception as g4f_e:
+                    try:
+                        if not hasattr(self, 'local_backup'):
+                            from local_brain import LocalBrain
+                            self.local_backup = LocalBrain()
+                        return self.local_backup.send_message(text)
+                    except Exception as e:
+                        return f"All brain systems offline. Error: {e}"      
             self.current_key_idx = (self.current_key_idx + 1) % len(self.api_keys)
             self.setup_session(history=self.chat_session.history if self.chat_session else [])
             return self.send_message(text, attempts=attempts + 1)

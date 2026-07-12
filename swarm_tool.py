@@ -60,9 +60,12 @@ def execute_swarm(swarm_config: str) -> str:
         # Wait for the browser page to fully load and the text box to auto-focus
         time.sleep(3.0)
         
-        # Physically paste the task using clipboard to handle newlines safely
+        # Physically paste the task using clipboard to handle newlines safely and instantly
         import pyperclip
         pyperclip.copy(task)
+        pyautogui.sleep(0.5)
+        pyautogui.hotkey('ctrl', 'v')
+        pyautogui.sleep(0.5)
         pyautogui.sleep(0.5)
         pyautogui.hotkey('ctrl', 'v')
         pyautogui.sleep(0.5)
